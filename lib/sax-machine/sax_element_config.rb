@@ -9,7 +9,10 @@ module SAXMachine
         
         if options.has_key?(:with)
           # for faster comparisons later
-          @with = options[:with].to_a.flatten.collect {|o| o.to_s}
+          @with = options[:with].inject({}) do |options, (key, value)|
+            options[(key.to_s rescue key) || key] = value
+            options
+          end
         else
           @with = nil
         end
@@ -46,7 +49,18 @@ module SAXMachine
       
       def attrs_match?(attrs)
         if @with
-          @with == (@with & attrs)
+          attrs = Hash[*attrs]
+          
+          (attrs.keys & @with.keys).all? do |key|
+            case matcher = @with[key]
+              when Regexp
+                attrs[key] =~ matcher
+              when Proc
+                matcher.call(attrs[key])
+              else
+                attrs[key] == matcher
+            end
+          end
         else
           true
         end

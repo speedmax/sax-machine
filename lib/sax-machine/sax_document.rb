@@ -32,9 +32,6 @@ module SAXMachine
   module ClassMethods
 
     def parse(xml_text)
-      # It might be cleaner to aditionally call parse_finish here, but
-      # then Nokogiri/libxml2 barfs on incomplete documents. Desired
-      # behaviour?
       new.parse(xml_text)
     end
     
@@ -46,19 +43,15 @@ module SAXMachine
       # this is how we allow custom parsing behavior. So you could define the setter
       # and have it parse the string into a date or whatever.
       attr_reader options[:as] unless instance_methods.include?(options[:as].to_s)
-      attr_writer_once options[:as] unless instance_methods.include?("#{options[:as]}=")
+      attr_writer options[:as] unless instance_methods.include?("#{options[:as]}=")
     end
 
     def columns
-      r = []
-      sax_config.top_level_elements.each do |name, ecs|
-        r += ecs
-      end
-      r
+      sax_config.top_level_elements
     end
 
     def column(sym)
-      (sax_config.top_level_elements[sym.to_s] || []).first
+      columns.select{|c| c.column == sym}[0]
     end
 
     def data_class(sym)
@@ -75,7 +68,7 @@ module SAXMachine
     
     def elements(name, options = {})
       options[:as] ||= name
-      if options[:class] || options[:events]
+      if options[:class]
         sax_config.add_collection_element(name, options)
       else
         class_eval <<-SRC
@@ -99,14 +92,6 @@ module SAXMachine
     
     def sax_config
       @sax_config ||= SAXConfig.new
-    end
-
-    def attr_writer_once(attr)
-      class_eval <<-SRC
-          def #{attr}=(val)
-            @#{attr} ||= val
-          end
-        SRC
     end
   end
   

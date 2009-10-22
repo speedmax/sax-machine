@@ -1,13 +1,12 @@
 require "nokogiri"
-require "sax-machine/ns_stack"
 
 module SAXMachine
   class SAXHandler < Nokogiri::XML::SAX::Document
     attr_reader :object
 
-    def initialize(object, nsstack=nil)
+    def initialize(object)
       @object = object
-      @nsstack = nsstack || NSStack.new
+      @parsed_configs = {}
     end
 
     def characters(string)
@@ -23,19 +22,16 @@ module SAXMachine
     end
 
     def start_element(name, attrs = [])
-
       @name   = name
-      @attrs  = attrs.map { |a| SAXHandler.decode_xml(a) }
-      @nsstack  = NSStack.new(@nsstack, @attrs)
+      @attrs  = attrs
 
       if parsing_collection?
         @collection_handler.start_element(@name, @attrs)
 
-      elsif @collection_config = sax_config.collection_config(@name, @nsstack)
-        @collection_handler = @collection_config.handler(@nsstack)
-        if @object.class != @collection_handler.object.class
-          @collection_handler.start_element(@name, @attrs)
-        end
+      elsif @collection_config = sax_config.collection_config(@name)
+        @collection_handler = @collection_config.handler
+        @collection_handler.start_element(@name, @attrs)
+
       elsif (element_configs = sax_config.element_configs_for_attribute(@name, @attrs)).any?
         parse_element_attributes(element_configs)
         set_element_config_for_element_value
@@ -46,20 +42,19 @@ module SAXMachine
     end
 
     def end_element(name)
-      if parsing_collection? && @collection_config.name == name.split(':').last
-        @collection_handler.end_element(name)
+      if parsing_collection? && @collection_config.name == name
         @object.send(@collection_config.accessor) << @collection_handler.object
         reset_current_collection
 
       elsif parsing_collection?
         @collection_handler.end_element(name)
 
-      elsif characaters_captured?
+      elsif characaters_captured? && !parsed_config?
+        mark_as_parsed
         @object.send(@element_config.setter, @value)
       end
 
       reset_current_tag
-      @nsstack = @nsstack.pop
     end
 
     def characaters_captured?
@@ -79,14 +74,27 @@ module SAXMachine
 
     def parse_element_attributes(element_configs)
       element_configs.each do |ec|
-        @object.send(ec.setter, ec.value_from_attrs(@attrs))
+        unless parsed_config?(ec)
+          @object.send(ec.setter, ec.value_from_attrs(@attrs))
+          mark_as_parsed(ec)
+        end
       end
       @element_config = nil
     end
 
     def set_element_config_for_element_value
       @value = ""
-      @element_config = sax_config.element_config_for_tag(@name, @attrs, @nsstack)
+      @element_config = sax_config.element_config_for_tag(@name, @attrs)
+    end
+
+    def mark_as_parsed(element_config=nil)
+      element_config ||= @element_config
+      @parsed_configs[element_config] = true unless element_config.collection?
+    end
+
+    def parsed_config?(element_config=nil)
+      element_config ||= @element_config
+      @parsed_configs[element_config]
     end
 
     def reset_current_collection
@@ -104,21 +112,5 @@ module SAXMachine
     def sax_config
       @object.class.sax_config
     end
-  
-    ##
-    # Decodes XML special characters.
-    def self.decode_xml(str)
-      return str.map &method(:decode_xml) if str.kind_of?(Array)
-
-      # entities = {
-      #         '#38'   => '&amp;',
-      #         '#13'   => "\r",
-      #       } 
-      #       entities.keys.inject(str) { |string, key|
-      #         string.gsub(/&#{key};/, entities[key])
-      #       } 
-      CGI.unescapeHTML(str)
-    end
-  
   end
 end

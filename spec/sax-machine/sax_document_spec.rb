@@ -63,11 +63,11 @@ describe "SAXMachine" do
         document.title.should == "Title"
       end
 
-      it "should *not* overwrite the value when the element is present (new behaviour!)" do
+      it "should overwrite the value when the element is present" do
         document = @klass.new
         document.title = "Old title"
         document.parse("<title>New title</title>")
-        document.title.should == "Old title"
+        document.title.should == "New title"
       end
 
       it "should save the element text into an accessor" do
@@ -135,11 +135,6 @@ describe "SAXMachine" do
               include SAXMachine
               element :link, :value => :href, :with => {:foo => "bar"}
             end
-          end
-          
-          it "should escape correctly the ampersand" do
-            document = @klass.parse("<link href='http://api.flickr.com/services/feeds/photos_public.gne?id=49724566@N00&amp;lang=en-us&amp;format=atom' foo='bar'>asdf</link>")
-            document.link.should == "http://api.flickr.com/services/feeds/photos_public.gne?id=49724566@N00&lang=en-us&format=atom"
           end
           
           it "should save the value of a matching element" do
@@ -282,99 +277,13 @@ describe "SAXMachine" do
           document.link_bar.should == 'test2'
         end
       end
-
-      describe "when specifying namespaces" do
-        before :all do
-          @klass = Class.new do
-            include SAXMachine
-            element :a, :xmlns => 'urn:test'
-            element :b, :xmlns => ['', 'urn:test']
-          end
-        end
-
-        it "should get the element with the xmlns" do
-          document = @klass.parse("<a xmlns='urn:test'>hello</a>")
-          document.a.should == 'hello'
-        end
-
-        it "shouldn't get the element without the xmlns" do
-          document = @klass.parse("<a>hello</a>")
-          document.a.should be_nil
-        end
-
-        it "shouldn't get the element with the wrong xmlns" do
-          document = @klass.parse("<a xmlns='urn:test2'>hello</a>")
-          document.a.should be_nil
-        end
-
-        it "should get an element without xmlns if the empty namespace is desired" do
-          document = @klass.parse("<b>hello</b>")
-          document.b.should == 'hello'
-        end
-
-        it "should get an element with the right prefix" do
-          document = @klass.parse("<p:a xmlns:p='urn:test'>hello</p:a>")
-          document.a.should == 'hello'
-        end
-
-        it "should not get an element with the wrong prefix" do
-          document = @klass.parse("<x:a xmlns:p='urn:test' xmlns:x='urn:test2'>hello</x:a>")
-          document.a.should be_nil
-        end
-
-        it "should get a prefixed element without xmlns if the empty namespace is desired" do
-          pending "this needs a less pickier nokogiri push parser"
-          document = @klass.parse("<x:b>hello</x:b>")
-          document.b.should == 'hello'
-        end
-
-        it "should get the namespaced element even it's not first" do
-          document = @klass.parse("<root xmlns:a='urn:test'><a>foo</a><a>foo</a><a:a>bar</a:a></root>")
-          document.a.should == 'bar'
-        end
-
-        it "should parse multiple namespaces" do
-          klass = Class.new do
-            include SAXMachine
-            element :a, :xmlns => 'urn:test'
-            element :b, :xmlns => 'urn:test2'
-          end
-          document = klass.parse("<root xmlns='urn:test' xmlns:b='urn:test2'><b:b>bar</b:b><a>foo</a></root>")
-          document.a.should == 'foo'
-          document.b.should == 'bar'
-        end
-
-        context "when passing a default namespace" do
-          before :all do
-            @xmlns = 'urn:test'
-            class Inner
-              include SAXMachine
-              element :a, :xmlns => @xmlns
-            end
-            @outer = Class.new do
-              include SAXMachine
-              elements :root, :default_xmlns => @xmlns, :class => Inner
-            end
-          end
-
-          it "should replace the empty namespace with a default" do
-            document = @outer.parse("<root><a>Hello</a></root>")
-            document.root[0].a.should == 'Hello'
-          end
-
-          it "should not replace another namespace" do
-            document = @outer.parse("<root xmlns='urn:test2'><a>Hello</a></root>")
-            document.root[0].a.should == 'Hello'
-          end
-        end
-      end
       
     end
   end
   
   describe "elements" do
     describe "when parsing multiple elements" do
-      before :all do
+      before :each do
         @klass = Class.new do
           include SAXMachine
           elements :entry, :as => :entries
@@ -448,50 +357,6 @@ describe "SAXMachine" do
         document.entries.first.url.should == "http://pauldix.net"
       end
     end    
-
-    describe "when desiring sax events" do
-      XHTML_XMLNS = "http://www.w3.org/1999/xhtml"
-
-      before :all do
-        @klass = Class.new do
-          include SAXMachine
-          elements :body, :events => true
-        end
-      end
-
-      it "should parse a simple child" do
-        document = @klass.parse("<body><p/></body>")
-        document.body[0].should == [[:start_element, "", "p", []],
-                                    [:end_element, "", "p"]]
-      end
-      it "should parse a simple child with text" do
-        document = @klass.parse("<body><p>Hello</p></body>")
-        document.body[0].should == [[:start_element, "", "p", []],
-                                    [:chars, "Hello"],
-                                    [:end_element, "", "p"]]
-      end
-      it "should parse nested children" do
-        document = @klass.parse("<body><p><span/></p></body>")
-        document.body[0].should == [[:start_element, "", "p", []],
-                                    [:start_element, "", "span", []],
-                                    [:end_element, "", "span"],
-                                    [:end_element, "", "p"]]
-      end
-      it "should parse multiple children" do
-        document = @klass.parse("<body><p>Hello</p><p>World</p></body>")
-        document.body[0].should == [[:start_element, "", "p", []],
-                                    [:chars, "Hello"],
-                                    [:end_element, "", "p"],
-                                    [:start_element, "", "p", []],
-                                    [:chars, "World"],
-                                    [:end_element, "", "p"]]
-      end
-      it "should pass namespaces" do
-        document = @klass.parse("<body xmlns='#{XHTML_XMLNS}'><p/></body>")
-        document.body[0].should == [[:start_element, XHTML_XMLNS, "p", []],
-                                    [:end_element, XHTML_XMLNS, "p"]]
-      end
-    end
   end
   
   describe "full example" do
@@ -504,7 +369,7 @@ describe "SAXMachine" do
         include SAXMachine
         element :title
         element :name, :as => :author
-        element :origLink, :as => :orig_link, :xmlns => XMLNS_FEEDBURNER
+        element "feedburner:origLink", :as => :url
         element :summary
         element :content
         element :published
@@ -515,144 +380,13 @@ describe "SAXMachine" do
         element :title
         element :link, :value => :href, :as => :url, :with => {:type => "text/html"}
         element :link, :value => :href, :as => :feed_url, :with => {:type => "application/atom+xml"}
-        elements :entry, :as => :entries, :class => AtomEntry, :xmlns => XMLNS_ATOM
+        elements :entry, :as => :entries, :class => AtomEntry
       end
     end # before
     
     it "should parse the url" do
       f = Atom.parse(@xml)
       f.url.should == "http://www.pauldix.net/"
-    end
-
-    it "should parse all entries" do
-      f = Atom.parse(@xml)
-      f.entries.length.should == 5
-    end
-
-    it "should parse the feedburner:origLink" do
-      f = Atom.parse(@xml)
-      f.entries[0].orig_link.should == 'http://www.pauldix.net/2008/09/marshal-data-to.html'
-    end
-  end
-
-  describe "another full example" do
-
-    RSS_XMLNS = 'http://purl.org/rss/1.0/'
-    ATOM_XMLNS = 'http://www.w3.org/2005/Atom'
-    class Entry
-      include SAXMachine
-      element :title, :xmlns => RSS_XMLNS
-      element :title, :xmlns => ATOM_XMLNS
-      element :link, :xmlns => RSS_XMLNS
-      element :link, :xmlns => ATOM_XMLNS, :value => 'href'
-    end
-    class Channel
-      include SAXMachine
-      element :title, :xmlns => RSS_XMLNS
-      element :title, :xmlns => ATOM_XMLNS
-      element :link, :xmlns => RSS_XMLNS
-      element :link, :xmlns => ATOM_XMLNS, :value => 'href'
-      elements :entry, :as => :entries, :class => Entry
-      elements :item, :as => :entries, :class => Entry
-    end
-    class Root
-      include SAXMachine
-      elements :rss, :as => :channels, :default_xmlns => RSS_XMLNS, :class => Channel
-      elements :feed, :as => :channels, :default_xmlns => ATOM_XMLNS, :class => Channel
-    end
-
-    context "when parsing a complex example" do
-      before :all do
-        @document = Root.parse(<<-eoxml).channels[0]
-<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" 
-                   xmlns:content="http://purl.org/rss/1.0/modules/content/"
-                   xmlns:wfw="http://wellformedweb.org/CommentAPI/"
-                   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-                   xmlns:dc="http://purl.org/dc/elements/1.1/"
-                   xmlns:cc="http://web.resource.org/cc/">
-  <channel>
-    <title>Delicious/tag/pubsubhubbub</title>
-    <atom:link rel="self" type="application/rss+xml" href="http://feeds.delicious.com/v2/rss/tag/pubsubhubbub?count=15"/>
-    <link>http://delicious.com/tag/pubsubhubbub</link>
-    <description>recent bookmarks tagged pubsubhubbub</description>
-  </channel>
-</rss>
-eoxml
-      end
-      it "should parse the title" do
-        @document.title.should == 'Delicious/tag/pubsubhubbub'
-      end
-      it "should parse the link" do
-        @document.link.should == 'http://feeds.delicious.com/v2/rss/tag/pubsubhubbub?count=15'
-      end
-    end
-  end  
-  
-  describe "yet another full example" do
-  
-    context "when parsing a Twitter example" do
-      before :all do
-        
-        RSS_XMLNS = ['http://purl.org/rss/1.0/', '']
-        
-        ATOM_XMLNS = 'http://www.w3.org/2005/Atom' unless defined? ATOM_XMLNS
-        class Link
-          include SAXMachine
-        end
-        
-        class Entry
-          include SAXMachine
-          element   :title,        :xmlns => RSS_XMLNS
-          element   :link,         :xmlns => RSS_XMLNS,   :as => :entry_link
-          element   :title,        :xmlns => ATOM_XMLNS,  :as => :title
-          elements  :link,         :xmlns => ATOM_XMLNS,  :as => :links,      :class => Link
-        end
-        
-        class Feed
-          include SAXMachine
-          element   :title,        :xmlns => RSS_XMLNS,  :as => :title
-          element   :link,         :xmlns => RSS_XMLNS,  :as => :feed_link
-          elements  :item,         :xmlns => RSS_XMLNS,  :as => :entries,         :class => Entry
-          element   :title,        :xmlns => ATOM_XMLNS, :as => :title
-          elements  :link,         :xmlns => ATOM_XMLNS, :as => :links,           :class => Link
-        end
-        
-        @document = Feed.parse(<<-eoxml)
-<?xml version="1.0" encoding="UTF-8"?>
-        <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
-          <channel>
-            <atom:link type="application/rss+xml" rel="self" href="http://twitter.com/statuses/user_timeline/5381582.rss"/>
-            <title>Twitter / julien51</title>
-            <link>http://twitter.com/julien51</link>
-            <description>Twitter updates from julien / julien51.</description>
-            <language>en-us</language>
-            <ttl>40</ttl>
-          <item>
-            <title>julien51: @github :  I get an error when trying to build one of my gems (julien51-sax-machine), it seems related to another gem's gemspec.</title>
-            <description>julien51: @github :  I get an error when trying to build one of my gems (julien51-sax-machine), it seems related to another gem's gemspec.</description>
-            <pubDate>Thu, 30 Jul 2009 01:00:30 +0000</pubDate>
-            <guid>http://twitter.com/julien51/statuses/2920716033</guid>
-            <link>http://twitter.com/julien51/statuses/2920716033</link>
-          </item>
-          <item>
-            <title>julien51: Hum, San Francisco's summer are delightful. http://bit.ly/VeXt4</title>
-            <description>julien51: Hum, San Francisco's summer are delightful. http://bit.ly/VeXt4</description>
-            <pubDate>Wed, 29 Jul 2009 23:07:32 +0000</pubDate>
-            <guid>http://twitter.com/julien51/statuses/2918869948</guid>
-            <link>http://twitter.com/julien51/statuses/2918869948</link>
-          </item>
-          </channel>
-        </rss>
-eoxml
-      end
-      it "should parse the title" do
-        @document.title.should == 'Twitter / julien51'
-      end
-      
-      it "should find an entry" do
-        @document.entries.length.should == 2
-      end
     end
   end
 end

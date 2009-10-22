@@ -9,16 +9,11 @@ module SAXMachine
   def parse(xml)
     unless @parser
       sax_handler = SAXHandler.new(self)
-      @parser = Nokogiri::XML::SAX::PushParser.new(sax_handler)
+      @parser = Nokogiri::XML::SAX::Parser.new(sax_handler)
     end
     
-    if xml.respond_to?(:read)
-      while chunk = xml.read(4096)
-        @parser << chunk
-      end
-    elsif xml.is_a? String
-      @parser << xml
-    end
+    @parser.parse(xml)
+
     self
   end
 

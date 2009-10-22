@@ -1,4 +1,5 @@
 require File.dirname(__FILE__) + '/../spec_helper'
+require 'date'
 
 describe "SAXMachine" do
   describe "element" do
@@ -494,10 +495,10 @@ describe "SAXMachine" do
   end
   
   describe "full example" do
-    XMLNS_ATOM = "http://www.w3.org/2005/Atom"
-    XMLNS_FEEDBURNER = "http://rssnamespace.org/feedburner/ext/1.0"
-
     before :each do
+      XMLNS_ATOM = "http://www.w3.org/2005/Atom"
+      XMLNS_FEEDBURNER = "http://rssnamespace.org/feedburner/ext/1.0"
+      
       @xml = File.read('spec/sax-machine/atom.xml')
       class AtomEntry
         include SAXMachine

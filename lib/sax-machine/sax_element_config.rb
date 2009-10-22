@@ -56,8 +56,9 @@ module SAXMachine
       def attrs_match?(attrs)
         if @with
           attrs = Hash[*attrs]
-          
-          (attrs.keys & @with.keys).all? do |key|
+          intersected = attrs.keys & @with.keys
+
+          (intersected == @with.keys) && intersected.all? do |key|
             case matcher = @with[key]
               when Regexp
                 attrs[key] =~ matcher

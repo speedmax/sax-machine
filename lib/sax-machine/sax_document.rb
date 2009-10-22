@@ -6,12 +6,19 @@ module SAXMachine
     base.extend ClassMethods
   end
   
-  def parse(xml_text)
+  def parse(xml)
     unless @parser
       sax_handler = SAXHandler.new(self)
       @parser = Nokogiri::XML::SAX::PushParser.new(sax_handler)
     end
-    @parser << xml_text
+    
+    if xml.respond_to?(:read)
+      while chunk = xml.read(4096)
+        @parser << chunk
+      end
+    elsif xml.is_a? String
+      @parser << xml
+    end
     self
   end
 

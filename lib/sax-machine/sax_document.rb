@@ -65,6 +65,10 @@ module SAXMachine
       options[:as] ||= name
       if options[:class]
         sax_config.add_collection_element(name, options)
+        
+        options[:class].class_eval do
+          attr_accessor :parent_element
+        end
       else
         class_eval <<-SRC
           def add_#{options[:as]}(value)
@@ -81,7 +85,6 @@ module SAXMachine
           end
         SRC
       end
-      
       attr_writer options[:as] unless instance_methods.include?("#{options[:as]}=")
     end
     

@@ -465,6 +465,11 @@ describe "SAXMachine" do
       @collection.categories.first.collection.categories.first.id.should == "2"
       @collection.categories.first.collection.categories.first.title.should == "Second"
     end
+    
+    it "should access to parent element" do
+      collection = @collection.categories.first.collection
+      collection.categories.first.parent_element.should == collection
+    end
   end
 
   describe "parsing a tree without a collection class" do

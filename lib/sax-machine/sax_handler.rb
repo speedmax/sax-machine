@@ -25,7 +25,11 @@ module SAXMachine
 
       if sax_config
         if collection_config = sax_config.collection_config(name, attrs)
+          collection = object
           stack.push [object = collection_config.data_class.new, collection_config, ""]
+          
+          object.parent_element = collection
+          
           object, sax_config, is_collection = object, object.class.sax_config, true
         end
         sax_config.element_configs_for_attribute(name, attrs).each do |ec|

@@ -42,7 +42,7 @@ module SAXMachine
     end
 
     def columns
-      sax_config.top_level_elements
+      sax_config.columns
     end
 
     def column(sym)
